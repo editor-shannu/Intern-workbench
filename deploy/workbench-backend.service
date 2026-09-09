@@ -1,0 +1,32 @@
+# Sample systemd unit for the backend, for a non-Docker EC2 deployment.
+#
+# Install:
+#   sudo cp deploy/workbench-backend.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now workbench-backend
+#   sudo systemctl status workbench-backend
+#   journalctl -u workbench-backend -f        # tail logs
+#
+# Adjust User/Group and the paths below to match where you deployed the app
+# and which (non-root) system user should own it.
+
+[Unit]
+Description=Intern AI-Coding Workbench backend (FastAPI/uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=workbench
+Group=workbench
+WorkingDirectory=/opt/intern-workbench/backend
+EnvironmentFile=/opt/intern-workbench/backend/.env
+ExecStart=/opt/intern-workbench/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
+Restart=on-failure
+RestartSec=5
+
+# Light sandboxing -- tighten further if you add per-workspace containers later.
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,51 @@
+# Brings up the whole app with one command, for either local testing or a
+# containerized EC2 deployment:
+#
+#   docker compose up --build
+#
+# Then open http://localhost (or http://<ec2-host>) -- nginx serves the built
+# frontend and proxies /api to the backend container.
+#
+# NOTE: this compose file was authored alongside a fully tested backend and a
+# verified frontend build, but the container build itself was NOT run in the
+# sandbox this project was built in (no Docker daemon / registry access
+# there). Run `docker compose config` and a real `docker compose up --build`
+# yourself before relying on this in production -- see README "Docker path"
+# for what to check.
+
+services:
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    volumes:
+      # Persist the sqlite db, the bare git mirror, and intern worktrees
+      # across container restarts.
+      - backend-data:/app/data
+      - backend-db:/app/db
+    environment:
+      # Keep DB/git paths inside the mounted volumes above regardless of
+      # whatever DATABASE_URL/GIT_ROOT/WORKSPACES_ROOT your .env has for
+      # non-Docker use.
+      - DATABASE_URL=sqlite:////app/db/workbench.db
+      - GIT_ROOT=/app/data/repo-mirror.git
+      - WORKSPACES_ROOT=/app/data/workspaces
+      - CORS_ORIGINS=http://localhost
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend-data:
+  backend-db:

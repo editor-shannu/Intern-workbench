@@ -1,0 +1,35 @@
+# Sample nginx server block for a non-Docker EC2 deployment.
+#
+# Copy to /etc/nginx/sites-available/intern-workbench, adjust the paths and
+# server_name, then:
+#   sudo ln -s /etc/nginx/sites-available/intern-workbench /etc/nginx/sites-enabled/
+#   sudo rm -f /etc/nginx/sites-enabled/default
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# Then run certbot for TLS: sudo certbot --nginx -d your-domain.example.com
+# (certbot will rewrite this file to add the listen 443 ssl block for you).
+
+server {
+    listen 80;
+    server_name your-domain.example.com;   # <-- change this (or use the EC2 public DNS/IP)
+
+    # Path to the built frontend (after `cd frontend && npm run build`).
+    root /opt/intern-workbench/frontend/dist;
+    index index.html;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # chat is Server-Sent Events -- don't buffer, don't time out early
+        proxy_buffering off;
+        proxy_read_timeout 300s;
+    }
+
+    location / {
+        try_files $uri /index.html;
+    }
+}

@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-bench-950 text-paper font-sans antialiased;
+}
+
+::selection {
+  background: #5C4726;
+  color: #EDE6D8;
+}
+
+/* thin, quiet scrollbars -- fits the instrumentation feel better than the
+   default chunky browser scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3D362B transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: #3D362B;
+  border-radius: 4px;
+}

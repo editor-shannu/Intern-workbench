@@ -1,0 +1,61 @@
+/* highlight.js theme matching our custom Tailwind palette */
+
+.hljs {
+  color: #a8a29e; /* text-dust */
+  background: #0c0a09; /* bg-bench-950 */
+}
+
+/* Keywords, operators, punctuation */
+.hljs-keyword,
+.hljs-operator,
+.hljs-punctuation {
+  color: #b1b59a; /* text-moss */
+}
+
+/* Built-ins, types, attributes */
+.hljs-built_in,
+.hljs-type,
+.hljs-attr,
+.hljs-title.class_,
+.hljs-title.function_ {
+  color: #d1b897; /* text-brass */
+}
+
+/* Strings, characters */
+.hljs-string,
+.hljs-char {
+  color: #d4d4d4; /* text-paper */
+}
+
+/* Comments */
+.hljs-comment,
+.hljs-quote {
+  color: #57534e; /* text-bench-800 or similar */
+  font-style: italic;
+}
+
+/* Numbers, booleans */
+.hljs-number,
+.hljs-literal {
+  color: #a0c4ff; /* slightly cooler for numbers/booleans */
+}
+
+/* Variables, params */
+.hljs-variable,
+.hljs-params {
+  color: #a8a29e;
+}
+
+/* Tags (HTML/XML) */
+.hljs-tag,
+.hljs-name {
+  color: #b1b59a;
+}
+
+/* Markdown specific */
+.hljs-strong {
+  font-weight: bold;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
