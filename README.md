@@ -1,43 +1,59 @@
-> **Acknowledgments:** This project was developed under the [DBERT Internship Program](https://dbert.online).
-# Intern AI-Coding Workbench
+<div align="center">
+  <h1>?? Intern AI-Coding Workbench</h1>
+  <p><em>A multi-tenant, dependency-aware platform orchestrating AI-assisted software engineering.</em></p>
+  
+  <a href="https://dbert.online">
+    <img src="https://img.shields.io/badge/Developed_under-DBERT_Internship_Program-0052cc?style=for-the-badge" alt="DBERT Internship">
+  </a>
+  <img src="https://img.shields.io/badge/React-18-blue?style=for-the-badge&logo=react">
+  <img src="https://img.shields.io/badge/FastAPI-Python-009688?style=for-the-badge&logo=fastapi">
+  <img src="https://img.shields.io/badge/OpenRouter-AI_Integration-8A2BE2?style=for-the-badge&logo=openai">
+</div>
 
-A multi-tenant, dependency-aware web platform designed to manage and execute complex software engineering projects. Admins bulk-upload Markdown project plans, and "Interns" claim tasks, code within isolated Git workspaces, and collaborate with a built-in AI assistant to push Pull Requests automatically.
+<br />
 
-## ?? Key Features
+## ?? The DBERT Internship Program
 
-### 1. Multi-Repo Architecture
-The backend dynamically provisions isolated Git bare-mirrors for every project. Admins can manage 50 different tasks across 10 different GitHub repositories from a single dashboard. Code pushes, branch creation, and PR automation route precisely to the correct upstream repository.
+This platform was proudly conceptualized, engineered, and developed under the **[DBERT Internship Program](https://dbert.online)**. 
 
-### 2. Dependency-Aware Workflows
-The platform understands complex dependency graphs. If Task B depends on Task A, the system will:
-* Inject **Critical AI Instructions** into the intern's chat window, preventing the AI from writing final code until Task A is merged.
-* Provide the intern with a one-click **"Sync from Main"** button to securely fetch and merge upstream dependencies into their active `git worktree` without leaving the browser.
-
-### 3. Smart Bulk-Import & Upserts
-Admins upload standard `.md` files containing task blocks. The backend features a robust Two-Pass Regex Parser that extracts `TaskID`, `DependsOn`, `AssignTo`, `Repo`, and `Branch` tags. 
-* **Safe Upserts**: Re-uploading a corrected Markdown file updates descriptions, assignments, and dependencies without wiping existing workspaces or duplicating entries in the database.
-
-### 4. Dynamic "Bring-Your-Own-Key" AI Chat
-The built-in IDE features a chat interface powered by OpenRouter. 
-* **Encrypted-at-Rest**: Intern API keys are AES-256-GCM encrypted in the SQLite database using a central `MASTER_KEY`.
-* **Dynamic Model Fetching**: The system performs a live verification of the intern's API key and dynamically fetches their exact allowed LLMs (GPT-4, Claude 3.5, etc.) directly from the OpenRouter API.
-
-### 5. Automated Git Operations & PR Polling
-Interns never touch a CLI. The system automatically handles `git fetch`, `git worktree add`, `git commit`, and `git push`. A background asynchronous poller constantly queries the GitHub API to update UI states the moment a Pull Request is merged by a maintainer.
+DBERT bridges the critical gap between academic learning and industry-grade software engineering. By empowering emerging tech talent to tackle real-world architecture challenges, the program cultivates innovation, rigorous development standards, and the hands-on experience necessary to build robust, scalable solutions. This Workbench stands as a testament to the high-caliber engineering fostered within the DBERT ecosystem.
 
 ---
 
-## ??? Tech Stack
-* **Backend**: Python 3.10+, FastAPI, SQLAlchemy (SQLite), Uvicorn, PyGithub, Httpx.
-* **Frontend**: React 18, Vite, Tailwind CSS, Lucide Icons, React Router.
-* **Infrastructure**: Requires system-level `git` to be installed on the host machine.
+## ?? Platform Overview
+
+The **Intern AI-Coding Workbench** is an advanced environment designed to manage complex software projects. Admins bulk-upload Markdown project plans, and "Interns" claim tasks, code within isolated Git workspaces, and collaborate with a built-in AI assistant to seamlessly push Pull Requests to GitHub.
+
+### ? Core Capabilities
+
+*   ??? **Multi-Repo Architecture**: The backend dynamically provisions isolated Git bare-mirrors for every project. Manage 50 different tasks across 10 different GitHub repositories from a single dashboard.
+*   ?? **Dependency-Aware Workflows**: The system maps out dependency graphs (`DependsOn`). Interns receive a **"Sync from Main"** button to automatically pull upstream dependencies into their active `git worktree`, and the AI is contextually blocked from writing final code until prerequisites are met.
+*   ?? **"Bring-Your-Own-Key" AI Chat**: Integrated with **OpenRouter**. Intern API keys are securely encrypted at rest (AES-256-GCM). The platform dynamically fetches live LLM access lists (GPT-4o, Claude 3.5, etc.) specifically tailored to the intern's credentials.
+*   ?? **Smart Bulk-Import Engine**: Admins upload standard `.md` files. A Two-Pass Regex Parser extracts `TaskID`, `AssignTo`, `Repo`, and `Branch` tags, safely performing data "upserts" to prevent database conflicts when correcting plans.
+*   ? **Zero-CLI Git Operations**: Interns never touch a terminal. The system orchestrates `git fetch`, `git worktree add`, `git commit`, and `git push` entirely via the UI, backed by a background poller that syncs Pull Request statuses.
 
 ---
 
-## ?? Getting Started (Local Development)
+## ??? System Architecture
 
-### 1. Backend Setup
-Navigate to the `backend` directory and set up your virtual environment:
+| Layer | Technologies |
+| :--- | :--- |
+| **Frontend** | React 18, Vite, Tailwind CSS, Lucide Icons |
+| **Backend API** | Python 3.10+, FastAPI, SQLAlchemy, Uvicorn, Httpx |
+| **Database** | SQLite3 (Local file-based) |
+| **VCS / Shell** | Native `git` subprocesses, PyGithub for REST PRs |
+
+---
+
+## ?? Getting Started (Local Deployment)
+
+### Prerequisites
+*   Node.js (v18+)
+*   Python (3.10+)
+*   System-level `git` installed on the host machine.
+
+### 1. Backend Initialization
+Open a terminal and configure your Python environment:
 
 ```bash
 cd backend
@@ -46,8 +62,7 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-**Configure Environment Variables:**
-Create a `.env` file in the `backend` directory (refer to `.env.example`).
+**Configure Environment Variables (`.env`)**:
 ```env
 SECRET_KEY=your_fastapi_jwt_secret
 MASTER_KEY=your_base64_32byte_encryption_key
@@ -56,39 +71,35 @@ ADMIN_PASSWORD=internpass123
 GITHUB_TOKEN=your_github_pat_for_opening_prs
 ```
 
-**Seed the Database:**
-This will create the SQLite database, your Admin account, and two test Interns.
+**Seed the SQLite Database**:
+This generates the initial schema and creates your Admin/Intern test accounts.
 ```bash
 python seed.py
 ```
 
-**Start the API Server:**
+**Start the API Server**:
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-### 2. Frontend Setup
-Open a new terminal and navigate to the `frontend` directory:
+### 2. Frontend Initialization
+In a separate terminal:
 
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-
-The application will be live at `http://localhost:5173`.
+Navigate to **`http://localhost:5173`** to access the Workbench.
 
 ---
 
-## ?? Admin Markdown Plan Format
+## ?? Admin: Markdown Plan Format
 
-To create a project, an Admin uploads a `.md` file in the following format. 
-* Text before the first `##` header is treated as **Global Context** and given to the AI on every task.
-* Each `##` header becomes a separate **Task**.
+Admins can instantly generate database tasks by uploading `.md` files in this structure:
 
 ```markdown
-Project context goes here. This explains the goal of the repository.
-
+This text serves as Global AI Context for all tasks below.
 Repo: https://github.com/your-org/your-repo.git
 Branch: main
 
@@ -96,24 +107,19 @@ Branch: main
 TaskID: db-schema
 AssignTo: intern1@example.com
 
-Create the SQLAlchemy models.
+Create the SQLAlchemy models for the new feature.
 
 ## Build the API Router
 TaskID: api-router
 DependsOn: db-schema
 AssignTo: intern2@example.com
 
-Create the FastAPI endpoints.
+Develop the FastAPI endpoints.
 ```
 
 ---
 
-## ?? The Intern Workflow
-1. **Login & Config**: Intern logs in and navigates to `Settings` to securely store their OpenRouter API Key.
-2. **Dashboard**: Intern views their assigned tasks. If a task is blocked, they see a warning.
-3. **Workspace**: Intern opens the workspace. The backend spins up an isolated `git worktree`.
-4. **Chat & Code**: Intern selects a file, chats with the AI, and clicks "Apply" on proposed diffs.
-5. **Sync**: If the intern was waiting on a dependency, they click the "Download/Sync" icon in the UI to pull upstream changes into their branch.
-6. **Push PR**: The intern clicks "Push & open PR". The backend commits the code, pushes it to the target GitHub repository, and opens a Pull Request using the Admin's configured GitHub PAT.
-
+<div align="center">
+  <p>Engineered with ?? by the <a href="https://dbert.online">DBERT</a> Engineering Team.</p>
+</div>
 
