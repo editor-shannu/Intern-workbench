@@ -1,3 +1,4 @@
+> **Acknowledgments:** This project was developed under the [DBERT Internship Program](https://dbert.online).
 # Intern AI-Coding Workbench
 
 A multi-tenant, dependency-aware web platform designed to manage and execute complex software engineering projects. Admins bulk-upload Markdown project plans, and "Interns" claim tasks, code within isolated Git workspaces, and collaborate with a built-in AI assistant to push Pull Requests automatically.
@@ -114,4 +115,5 @@ Create the FastAPI endpoints.
 4. **Chat & Code**: Intern selects a file, chats with the AI, and clicks "Apply" on proposed diffs.
 5. **Sync**: If the intern was waiting on a dependency, they click the "Download/Sync" icon in the UI to pull upstream changes into their branch.
 6. **Push PR**: The intern clicks "Push & open PR". The backend commits the code, pushes it to the target GitHub repository, and opens a Pull Request using the Admin's configured GitHub PAT.
+
 
