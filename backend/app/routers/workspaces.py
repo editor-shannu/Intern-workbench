@@ -1,10 +1,13 @@
+import sys
+import time
+import subprocess
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import git_manager, models, schemas
-from ..auth import get_current_user
+from .. import context_builder, git_manager, models, schemas
+from ..auth import get_current_user, require_admin
 from ..config import settings
 from ..database import get_db
 from ..deps import get_owned_workspace
@@ -25,7 +28,11 @@ def open_workspace(
     existing = (
         db.query(models.Workspace).filter_by(task_id=task_id, user_id=current_user.id).first()
     )
-    if existing:
+    if existing and Path(existing.worktree_path).exists():
+        if existing.status == "archived":
+            existing.status = "active"
+            db.commit()
+            db.refresh(existing)
         return existing
 
     try:
@@ -43,6 +50,16 @@ def open_workspace(
         git_manager.set_identity(worktree_path, current_user.name, current_user.github_author_email)
     except git_manager.GitError as e:
         raise HTTPException(400, str(e))
+
+    if existing:
+        existing.branch_name = branch
+        existing.worktree_path = str(worktree_path)
+        existing.base_commit_sha = base_sha
+        existing.status = "active"
+        task.status = "in_progress"
+        db.commit()
+        db.refresh(existing)
+        return existing
 
     ws = models.Workspace(
         task_id=task.id,
@@ -121,3 +138,129 @@ def remove_context(
     db.delete(snip)
     db.commit()
     return {"status": "deleted"}
+
+
+@router.get("/{workspace_id}/context/inspect", response_model=schemas.ContextInspectOut)
+def inspect_context(ws: models.Workspace = Depends(get_owned_workspace), db: Session = Depends(get_db)):
+    task = db.get(models.Task, ws.task_id)
+    if not task:
+        raise HTTPException(404, "Task not found")
+    data = context_builder.inspect_context_bundle(db, ws, task, Path(ws.worktree_path))
+    return schemas.ContextInspectOut(**data)
+
+
+@router.get("", response_model=list[schemas.WorkspaceDetail])
+def list_workspaces(admin: models.User = Depends(require_admin), db: Session = Depends(get_db)):
+    workspaces = db.query(models.Workspace).all()
+    out = []
+    for ws in workspaces:
+        task = db.get(models.Task, ws.task_id)
+        pr = db.query(models.PullRequest).filter_by(workspace_id=ws.id).first()
+        out.append(
+            schemas.WorkspaceDetail(
+                id=ws.id,
+                task_id=ws.task_id,
+                user_id=ws.user_id,
+                branch_name=ws.branch_name,
+                worktree_path=ws.worktree_path,
+                base_commit_sha=ws.base_commit_sha,
+                status=ws.status,
+                task=schemas.TaskOut.model_validate(task) if task else None,
+                pull_request=schemas.PullRequestOut.model_validate(pr) if pr else None,
+            )
+        )
+    return out
+
+
+@router.post("/{workspace_id}/prune")
+def prune_workspace(
+    workspace_id: int,
+    admin: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    ws = db.get(models.Workspace, workspace_id)
+    if not ws:
+        raise HTTPException(404, "Workspace not found")
+
+    task = db.get(models.Task, ws.task_id)
+    project_id = task.project_id if task else None
+
+    # Prune worktree on disk
+    git_manager.prune_worktree(Path(ws.worktree_path), project_id)
+
+    ws.status = "archived"
+    db.commit()
+    db.refresh(ws)
+    return {"status": "archived", "workspace_id": ws.id}
+
+
+@router.post("/{workspace_id}/run-tests", response_model=schemas.TestRunResponse)
+def run_workspace_tests(
+    payload: schemas.TestRunRequest,
+    ws: models.Workspace = Depends(get_owned_workspace),
+    db: Session = Depends(get_db),
+):
+    raw_path = Path(ws.worktree_path)
+    backend_root = Path(__file__).resolve().parent.parent.parent
+    worktree_path = raw_path if raw_path.is_absolute() else (backend_root / raw_path)
+    if not worktree_path.exists():
+        raise HTTPException(404, "Workspace worktree directory not found on disk")
+
+    cmd_raw = (payload.command or "pytest").strip()
+    python_exe = sys.executable
+
+    # Construct safe command arguments
+    if cmd_raw.startswith("pytest"):
+        extra_args = cmd_raw.split()[1:]
+        cmd_args = [python_exe, "-m", "pytest"] + extra_args
+    elif cmd_raw.startswith("python -m unittest"):
+        extra_args = cmd_raw.split()[3:]
+        cmd_args = [python_exe, "-m", "unittest"] + extra_args
+    elif cmd_raw.startswith("python "):
+        script = cmd_raw[7:].strip()
+        cmd_args = [python_exe, script]
+    elif payload.target_file:
+        cmd_args = [python_exe, payload.target_file]
+    else:
+        cmd_args = [python_exe, "-m", "pytest"]
+
+    start_time = time.time()
+    try:
+        res = subprocess.run(
+            cmd_args,
+            cwd=str(worktree_path),
+            capture_output=True,
+            text=True,
+            timeout=25,
+        )
+        duration_ms = int((time.time() - start_time) * 1000)
+        display_cmd = cmd_raw if not payload.target_file else f"python {payload.target_file}"
+        return schemas.TestRunResponse(
+            command=display_cmd,
+            exit_code=res.returncode,
+            passed=(res.returncode == 0),
+            stdout=res.stdout or "",
+            stderr=res.stderr or "",
+            duration_ms=duration_ms,
+        )
+    except subprocess.TimeoutExpired as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        return schemas.TestRunResponse(
+            command=cmd_raw,
+            exit_code=124,
+            passed=False,
+            stdout=e.stdout or "" if hasattr(e, "stdout") and e.stdout else "",
+            stderr="Execution timed out after 25 seconds.",
+            duration_ms=duration_ms,
+        )
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        return schemas.TestRunResponse(
+            command=cmd_raw,
+            exit_code=1,
+            passed=False,
+            stdout="",
+            stderr=str(e),
+            duration_ms=duration_ms,
+        )
+

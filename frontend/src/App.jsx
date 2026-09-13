@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import AdminBoard from './pages/AdminBoard'
 import Workspace from './pages/Workspace'
 import Settings from './pages/Settings'
 import Layout from './components/Layout'
@@ -25,6 +26,7 @@ function AppRoutes() {
         }
       >
         <Route index element={<Dashboard />} />
+        <Route path="admin" element={<AdminBoard />} />
         <Route path="workspace/:id" element={<Workspace />} />
         <Route path="settings" element={<Settings />} />
       </Route>

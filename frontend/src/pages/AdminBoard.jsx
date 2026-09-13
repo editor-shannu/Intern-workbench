@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import api from '../api'
 import StatusTag, { TRACK_LABELS } from '../components/StatusTag'
-import { Plus, X, Upload } from 'lucide-react'
+import AdminMetrics from '../components/AdminMetrics'
+import PlanImporterModal from '../components/PlanImporterModal'
+import KanbanBoard from '../components/KanbanBoard'
+import DependencyGraphModal from '../components/DependencyGraphModal'
+import { Plus, X, Upload, LayoutGrid, List, GitFork } from 'lucide-react'
 
 const TRACKS = ['ai-ml', 'data', 'full-stack', 'rpa']
 
@@ -9,6 +13,11 @@ export default function AdminBoard() {
   const [tasks, setTasks] = useState([])
   const [users, setUsers] = useState([])
   const [notes, setNotes] = useState([])
+  const [workspaces, setWorkspaces] = useState([])
+  const [metrics, setMetrics] = useState(null)
+  const [showPlanModal, setShowPlanModal] = useState(false)
+  const [showGraphModal, setShowGraphModal] = useState(false)
+  const [viewMode, setViewMode] = useState('table') // 'table' | 'kanban'
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [showUserForm, setShowUserForm] = useState(false)
   const [newTask, setNewTask] = useState({ title: '', description: '', track: 'full-stack', source_ref: '' })
@@ -16,14 +25,41 @@ export default function AdminBoard() {
   const [noteText, setNoteText] = useState('')
   const [formError, setFormError] = useState('')
 
+  async function handleStatusChange(taskId, newStatus) {
+    try {
+      await api.patch(`/tasks/${taskId}`, { status: newStatus })
+      refresh()
+    } catch (err) {
+      setFormError(err.response?.data?.detail || 'Could not update task status')
+    }
+  }
+
   async function refresh() {
     try {
-      const [t, u, n] = await Promise.all([api.get('/tasks'), api.get('/users'), api.get('/project-notes')])
+      const [t, u, n, w, m] = await Promise.all([
+        api.get('/tasks'),
+        api.get('/users'),
+        api.get('/project-notes'),
+        api.get('/workspaces'),
+        api.get('/admin/metrics').catch(() => ({ data: null })),
+      ])
       setTasks(t.data)
       setUsers(u.data)
       setNotes(n.data)
+      setWorkspaces(w.data)
+      if (m.data) setMetrics(m.data)
     } catch {
       // ignore
+    }
+  }
+
+  async function handlePrune(workspaceId) {
+    if (!window.confirm('Prune this worktree directory from disk?')) return
+    try {
+      await api.post(`/workspaces/${workspaceId}/prune`)
+      refresh()
+    } catch (err) {
+      setFormError(err.response?.data?.detail || 'Failed to prune workspace')
     }
   }
 
@@ -111,13 +147,53 @@ export default function AdminBoard() {
 
   return (
     <div className="max-w-5xl mx-auto w-full p-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-medium">Task board</h1>
-        <div className="flex gap-2">
-          <label className="text-sm border border-bench-800 hover:border-bench-700 px-3 py-1.5 rounded flex items-center gap-1 cursor-pointer">
-            <Upload className="w-3.5 h-3.5" /> Upload Plan (.md)
-            <input type="file" accept=".md" className="hidden" onChange={handleUploadPlan} />
-          </label>
+      {/* Top: Admin Analytics & Telemetry Dashboard */}
+      <AdminMetrics metrics={metrics} />
+
+      {/* Task Board Header */}
+      <div className="flex flex-wrap items-center justify-between border-t border-bench-800/80 pt-6 gap-4">
+        <div>
+          <h1 className="text-lg font-medium text-paper">Task board</h1>
+          <p className="text-xs text-dust">Manage sprint tasks, track assignments, and intern progress.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-bench-950 border border-bench-800 rounded p-0.5 text-xs">
+            <button
+              data-view-table-btn
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded transition-colors ${
+                viewMode === 'table' ? 'bg-bench-800 text-paper font-medium' : 'text-dust hover:text-paper'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" /> Table
+            </button>
+            <button
+              data-view-kanban-btn
+              onClick={() => setViewMode('kanban')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded transition-colors ${
+                viewMode === 'kanban' ? 'bg-bench-800 text-paper font-medium' : 'text-dust hover:text-paper'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" /> Kanban
+            </button>
+          </div>
+
+          <button
+            data-open-graph-btn
+            onClick={() => setShowGraphModal(true)}
+            className="text-sm border border-bench-800 hover:border-bench-700 px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors text-paper"
+            title="Open interactive milestone dependency graph"
+          >
+            <GitFork className="w-3.5 h-3.5 text-brass" /> Dependency Graph
+          </button>
+          <button
+            data-import-plan-btn
+            onClick={() => setShowPlanModal(true)}
+            className="text-sm border border-bench-800 hover:border-bench-700 px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors text-paper"
+          >
+            <Upload className="w-3.5 h-3.5 text-brass" /> Import Plan (.md)
+          </button>
           <button
             onClick={() => setShowUserForm((s) => !s)}
             className="text-sm border border-bench-800 hover:border-bench-700 px-3 py-1.5 rounded flex items-center gap-1"
@@ -215,45 +291,124 @@ export default function AdminBoard() {
         </form>
       )}
 
-      <div className="border border-bench-800">
+      {/* Tasks View: Kanban Board OR Data Table */}
+      {viewMode === 'kanban' ? (
+        <KanbanBoard
+          tasks={tasks}
+          users={users}
+          onAssign={assign}
+          onStatusChange={handleStatusChange}
+        />
+      ) : (
+        <div className="border border-bench-800">
+          <table className="w-full text-sm">
+            <thead className="text-dust text-xs border-b border-bench-800">
+              <tr>
+                <th className="text-left px-4 py-2 font-normal">Task</th>
+                <th className="text-left px-4 py-2 font-normal">Track</th>
+                <th className="text-left px-4 py-2 font-normal">Assigned to</th>
+                <th className="text-left px-4 py-2 font-normal">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.map((t, i) => (
+                <tr key={t.id} className={i > 0 ? 'border-t border-bench-800' : ''}>
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{t.title}</div>
+                    {t.source_ref && <div className="text-xs text-dust">{t.source_ref}</div>}
+                  </td>
+                  <td className="px-4 py-3 text-dust">{TRACK_LABELS[t.track] || t.track}</td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={t.assigned_user_id || ''}
+                      onChange={(e) => assign(t.id, e.target.value)}
+                      className="bg-bench-950 border border-bench-800 rounded px-2 py-1 text-xs"
+                    >
+                      <option value="">— unassigned —</option>
+                      {users
+                        .filter((u) => u.role === 'intern')
+                        .map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}
+                          </option>
+                        ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusTag status={t.status} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Workspaces & Git Lifecycle Section */}
+      <div className="border border-bench-800 bg-bench-950">
+        <div className="border-b border-bench-800 px-4 py-3 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-medium text-paper">Active Workspaces & Worktrees</h2>
+            <p className="text-xs text-dust">Manage disk worktrees and prune completed environments.</p>
+          </div>
+          <span className="text-xs font-mono text-dust">{workspaces.length} total</span>
+        </div>
         <table className="w-full text-sm">
           <thead className="text-dust text-xs border-b border-bench-800">
             <tr>
               <th className="text-left px-4 py-2 font-normal">Task</th>
-              <th className="text-left px-4 py-2 font-normal">Track</th>
-              <th className="text-left px-4 py-2 font-normal">Assigned to</th>
+              <th className="text-left px-4 py-2 font-normal">Branch</th>
+              <th className="text-left px-4 py-2 font-normal">Worktree Path</th>
               <th className="text-left px-4 py-2 font-normal">Status</th>
+              <th className="text-right px-4 py-2 font-normal">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {tasks.map((t, i) => (
-              <tr key={t.id} className={i > 0 ? 'border-t border-bench-800' : ''}>
-                <td className="px-4 py-3">
-                  <div className="font-medium">{t.title}</div>
-                  {t.source_ref && <div className="text-xs text-dust">{t.source_ref}</div>}
+            {workspaces.map((ws, i) => (
+              <tr key={ws.id} className={i > 0 ? 'border-t border-bench-800' : ''}>
+                <td className="px-4 py-3 font-medium text-paper">
+                  {ws.task?.title || `Task #${ws.task_id}`}
                 </td>
-                <td className="px-4 py-3 text-dust">{TRACK_LABELS[t.track] || t.track}</td>
+                <td className="px-4 py-3 text-xs font-mono text-dust truncate max-w-[200px]" title={ws.branch_name}>
+                  {ws.branch_name}
+                </td>
+                <td className="px-4 py-3 text-xs font-mono text-bench-500 truncate max-w-[220px]" title={ws.worktree_path}>
+                  {ws.worktree_path}
+                </td>
                 <td className="px-4 py-3">
-                  <select
-                    value={t.assigned_user_id || ''}
-                    onChange={(e) => assign(t.id, e.target.value)}
-                    className="bg-bench-950 border border-bench-800 rounded px-2 py-1 text-xs"
+                  <span
+                    className={`px-2 py-0.5 text-xs font-mono rounded ${
+                      ws.status === 'active'
+                        ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800'
+                        : 'bg-bench-900 text-dust border border-bench-800'
+                    }`}
                   >
-                    <option value="">— unassigned —</option>
-                    {users
-                      .filter((u) => u.role === 'intern')
-                      .map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name}
-                        </option>
-                      ))}
-                  </select>
+                    {ws.status}
+                  </span>
                 </td>
-                <td className="px-4 py-3">
-                  <StatusTag status={t.status} />
+                <td className="px-4 py-3 text-right">
+                  {ws.status === 'active' ? (
+                    <button
+                      data-prune-btn={ws.id}
+                      onClick={() => handlePrune(ws.id)}
+                      className="text-xs border border-bench-800 hover:border-red-500/50 hover:text-red-400 px-2.5 py-1 rounded transition-colors text-paper"
+                      title="Prune worktree directory from disk"
+                    >
+                      Prune
+                    </button>
+                  ) : (
+                    <span className="text-xs text-dust italic">archived</span>
+                  )}
                 </td>
               </tr>
             ))}
+            {workspaces.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-xs text-dust">
+                  No workspaces created yet.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -284,6 +439,18 @@ export default function AdminBoard() {
           ))}
         </ul>
       </div>
+
+      {showPlanModal && (
+        <PlanImporterModal
+          onClose={() => setShowPlanModal(false)}
+          onImportSuccess={() => refresh()}
+        />
+      )}
+
+      <DependencyGraphModal
+        isOpen={showGraphModal}
+        onClose={() => setShowGraphModal(false)}
+      />
     </div>
   )
 }
