@@ -6,10 +6,16 @@ __pycache__/
 *$py.class
 *.so
 .env
-workbench.db
+.env.*
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
 
 # Dynamic Backend Data (Workspaces & Mirrors)
 backend/data/
+data/
 
 # Node / Frontend
 node_modules/

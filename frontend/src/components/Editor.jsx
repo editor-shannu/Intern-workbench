@@ -24,14 +24,22 @@ export function languageFor(path) {
   return EXT_LANGUAGE_MAP[ext] || 'plaintext'
 }
 
-export default function CodeEditor({ path, value, onChange }) {
+export default function CodeEditor({ path, value, onChange, onSave }) {
   if (!path) {
     return (
-      <div className="h-full flex items-center justify-center text-dust text-sm bg-bench-950">
-        Select a file to start editing
+      <div className="h-full flex flex-col items-center justify-center text-dust text-sm bg-bench-950 select-none">
+        <p className="text-bench-500 font-mono text-xs">No file open</p>
+        <p className="text-bench-600 text-xs mt-1">Select a file from the workspace tree on the left</p>
       </div>
     )
   }
+
+  function handleEditorDidMount(editor, monaco) {
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      onSave?.()
+    })
+  }
+
   return (
     <Editor
       height="100%"
@@ -40,12 +48,15 @@ export default function CodeEditor({ path, value, onChange }) {
       language={languageFor(path)}
       value={value}
       onChange={(v) => onChange(v ?? '')}
+      onMount={handleEditorDidMount}
       options={{
         fontSize: 13,
         fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
         minimap: { enabled: false },
         automaticLayout: true,
         scrollBeyondLastLine: false,
+        tabSize: 2,
+        renderWhitespace: 'selection',
       }}
     />
   )

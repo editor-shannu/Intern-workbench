@@ -18,7 +18,10 @@ services:
     build:
       context: ./backend
     env_file:
-      - ./backend/.env
+      - path: ./backend/.env
+        required: false
+      - path: .env
+        required: false
     volumes:
       # Persist the sqlite db, the bare git mirror, and intern worktrees
       # across container restarts.
@@ -31,7 +34,12 @@ services:
       - DATABASE_URL=sqlite:////app/db/workbench.db
       - GIT_ROOT=/app/data/repo-mirror.git
       - WORKSPACES_ROOT=/app/data/workspaces
-      - CORS_ORIGINS=http://localhost
+      - CORS_ORIGINS=http://localhost,http://127.0.0.1,http://localhost:80
+      - SECRET_KEY=${SECRET_KEY:-s6Mqexgy4pY_fdgLO4O3ooBqn2Lv1NtguzhLWQrQhB7oW-XoQMQBxIou7YIOnaIU}
+      - MASTER_KEY=${MASTER_KEY:-JKe4DEw-R0ACujLkYiEpxMDNpfVticYpTCcbI5a5TAk=}
+      - ADMIN_NAME=${ADMIN_NAME:-Admin}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-internpass123}
     expose:
       - "8000"
     restart: unless-stopped

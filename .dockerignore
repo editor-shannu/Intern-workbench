@@ -1,0 +1,33 @@
+# Version control
+.git
+.gitignore
+
+# Node / Frontend
+node_modules
+frontend/node_modules
+frontend/dist
+dist
+
+# Python / Backend
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+backend/venv
+venv
+ENV/
+env/
+.pytest_cache/
+.coverage
+
+# Databases & local data
+backend/data
+backend/repos
+*.db
+*.sqlite3
+dummy-upstream.git
+
+# Local environment files
+.env
+backend/.env
