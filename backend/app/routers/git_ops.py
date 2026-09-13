@@ -119,13 +119,58 @@ def sync_workspace(ws: models.Workspace = Depends(get_owned_workspace), db: Sess
     project_id = task.project_id
     repo_url = task.project.repo_url if task.project else ""
     base_branch = task.project.base_branch if task.project else settings.BASE_BRANCH
-    
+
     try:
         git_manager.merge_base_branch(Path(ws.worktree_path), base_branch, project_id, repo_url)
+    except git_manager.GitConflictError as e:
+        return {"status": "conflict", "conflicts": e.conflicted_files, "message": str(e)}
     except git_manager.GitError as e:
         raise HTTPException(400, str(e))
-    
-    # Optional: Log the sync
+
     db.add(models.CommitLog(workspace_id=ws.id, commit_sha="SYNC", message="Merged base branch into workspace"))
     db.commit()
     return {"status": "synced"}
+
+
+@router.get("/conflicts")
+def get_conflicts(ws: models.Workspace = Depends(get_owned_workspace)):
+    conflicts = git_manager.get_conflicted_files(Path(ws.worktree_path))
+    return {"has_conflicts": len(conflicts) > 0, "conflicts": conflicts}
+
+
+@router.post("/abort-merge")
+def abort_merge(ws: models.Workspace = Depends(get_owned_workspace)):
+    try:
+        git_manager.abort_merge(Path(ws.worktree_path))
+    except git_manager.GitError as e:
+        raise HTTPException(400, str(e))
+    return {"status": "aborted"}
+
+
+@router.post("/complete-merge")
+def complete_merge(
+    ws: models.Workspace = Depends(get_owned_workspace),
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        git_manager.complete_merge(
+            Path(ws.worktree_path), current_user.name, current_user.github_author_email
+        )
+    except git_manager.GitConflictError as e:
+        raise HTTPException(400, f"Cannot complete merge: unresolved conflicts in {', '.join(e.conflicted_files)}")
+    except git_manager.GitError as e:
+        raise HTTPException(400, str(e))
+
+    db.add(models.CommitLog(workspace_id=ws.id, commit_sha="MERGE", message="Resolved merge conflict from base branch"))
+    db.commit()
+    return {"status": "completed"}
+
+
+@router.post("/reset")
+def reset_workspace(ws: models.Workspace = Depends(get_owned_workspace)):
+    try:
+        git_manager.reset_worktree(Path(ws.worktree_path))
+    except git_manager.GitError as e:
+        raise HTTPException(400, str(e))
+    return {"status": "reset"}
