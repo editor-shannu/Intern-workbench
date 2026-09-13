@@ -28,8 +28,12 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      await login(email, password)
-      navigate('/')
+      const loggedUser = await login(email, password)
+      if (loggedUser?.role === 'admin') {
+        navigate('/admin')
+      } else {
+        navigate('/')
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed')
     } finally {
