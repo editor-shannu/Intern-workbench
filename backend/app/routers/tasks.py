@@ -158,6 +158,63 @@ def list_tasks(current_user: models.User = Depends(get_current_user), db: Sessio
     return q.order_by(models.Task.id).all()
 
 
+@router.get("/graph", response_model=schemas.TaskGraphOut)
+def get_task_graph(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    all_tasks = db.query(models.Task).order_by(models.Task.id).all()
+    users_map = {u.id: u.name for u in db.query(models.User).all()}
+
+    nodes = []
+    edges = []
+    blocked_count = 0
+    ready_count = 0
+    merged_count = 0
+
+    for t in all_tasks:
+        blockers = []
+        is_blocked = False
+        for dep in t.dependencies:
+            edges.append(
+                schemas.TaskGraphEdge(
+                    from_id=dep.id,
+                    to_id=t.id,
+                    is_satisfied=(dep.status == "merged"),
+                )
+            )
+            if dep.status != "merged":
+                is_blocked = True
+                blockers.append(dep.title or dep.identifier or f"Task #{dep.id}")
+
+        if t.status == "merged":
+            merged_count += 1
+        elif is_blocked:
+            blocked_count += 1
+        else:
+            ready_count += 1
+
+        nodes.append(
+            schemas.TaskGraphNode(
+                id=t.id,
+                title=t.title,
+                identifier=t.identifier,
+                track=t.track or "full-stack",
+                status=t.status or "unassigned",
+                source_ref=t.source_ref,
+                assigned_user_id=t.assigned_user_id,
+                assigned_user_name=users_map.get(t.assigned_user_id),
+                is_blocked=is_blocked,
+                blockers=blockers,
+            )
+        )
+
+    summary = schemas.TaskGraphSummary(
+        total_tasks=len(all_tasks),
+        blocked_count=blocked_count,
+        ready_count=ready_count,
+        merged_count=merged_count,
+    )
+    return schemas.TaskGraphOut(nodes=nodes, edges=edges, summary=summary)
+
+
 @router.post("", response_model=schemas.TaskOut)
 def create_task(
     payload: schemas.TaskCreate, admin: models.User = Depends(require_admin), db: Session = Depends(get_db)

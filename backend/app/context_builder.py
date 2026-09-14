@@ -136,3 +136,50 @@ changes scoped to files relevant to this task.
 
 Context for this task follows:
 """
+
+
+def inspect_context_bundle(
+    db: Session, workspace: models.Workspace, task: models.Task, worktree_path: Path
+) -> dict:
+    bundle, sources = build_context_bundle(db, workspace, task, worktree_path)
+    system_prompt = (
+        SYSTEM_PROMPT_TEMPLATE.format(
+            task_title=task.title,
+            task_track=task.track,
+            task_description=task.description or "(none)",
+        )
+        + "\n"
+        + bundle
+    )
+
+    snippets = db.query(models.ContextSnippet).filter_by(workspace_id=workspace.id).all()
+    attached_files = []
+    for s in snippets:
+        live_path = worktree_path / s.source_path
+        size = live_path.stat().st_size if live_path.exists() else 0
+        attached_files.append({"id": s.id, "path": s.source_path, "size_bytes": size})
+
+    dependencies = []
+    if task.dependencies:
+        for dep in task.dependencies:
+            dependencies.append({
+                "id": dep.id,
+                "title": dep.title,
+                "status": dep.status,
+                "assigned_user_id": dep.assigned_user_id,
+            })
+
+    total_chars = len(system_prompt)
+    estimated_tokens = int(total_chars / 4)
+
+    return {
+        "task_title": task.title,
+        "task_track": task.track,
+        "system_prompt": system_prompt,
+        "bundle": bundle,
+        "sources": sources,
+        "total_characters": total_chars,
+        "estimated_tokens": estimated_tokens,
+        "attached_files": attached_files,
+        "dependencies": dependencies,
+    }

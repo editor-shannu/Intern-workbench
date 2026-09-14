@@ -29,6 +29,13 @@ async def _poll_once() -> None:
                     if task:
                         if new_status == "merged":
                             task.status = "merged"
+                            try:
+                                from pathlib import Path
+                                from . import git_manager
+                                git_manager.prune_worktree(Path(ws.worktree_path), task.project_id)
+                                ws.status = "archived"
+                            except Exception as pe:
+                                logger.warning("Worktree prune error on merge: %s", pe)
                         elif new_status == "closed":
                             task.status = "in_progress"
                 db.commit()

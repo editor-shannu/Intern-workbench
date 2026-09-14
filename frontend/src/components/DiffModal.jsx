@@ -4,7 +4,7 @@ import { X, Check } from 'lucide-react'
 
 export default function DiffModal({ originalContent, proposedContent, path, onCancel, onAccept }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-8">
+    <div data-diff-modal className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-8">
       <div className="bg-bench-950 border border-bench-800 rounded-lg shadow-xl w-full max-w-6xl h-full max-h-[85vh] flex flex-col overflow-hidden">
         
         {/* Header */}
@@ -13,7 +13,7 @@ export default function DiffModal({ originalContent, proposedContent, path, onCa
             <h3 className="font-medium text-paper text-sm">Review Changes</h3>
             <div className="text-xs text-dust font-mono mt-0.5">{path}</div>
           </div>
-          <button onClick={onCancel} className="text-dust hover:text-paper p-1 rounded-md">
+          <button data-cancel-diff-btn onClick={onCancel} className="text-dust hover:text-paper p-1 rounded-md">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -41,12 +41,14 @@ export default function DiffModal({ originalContent, proposedContent, path, onCa
         {/* Footer */}
         <div className="px-4 py-3 border-t border-bench-800 bg-bench-900 flex justify-end gap-3 shrink-0">
           <button
+            data-cancel-diff-btn
             onClick={onCancel}
             className="px-4 py-1.5 text-sm text-dust hover:text-paper hover:bg-bench-800 rounded transition-colors"
           >
             Cancel
           </button>
           <button
+            data-apply-diff-btn
             onClick={onAccept}
             className="flex items-center gap-2 px-4 py-1.5 text-sm bg-moss hover:bg-moss/90 text-bench-950 font-medium rounded transition-colors"
           >

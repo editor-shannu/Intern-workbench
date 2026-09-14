@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import settings
 from .database import Base, engine
 from .pr_poller import start_poller
-from .routers import auth_routes, chat, files, git_ops, tasks, users, workspaces
+from .routers import auth_routes, chat, files, git_ops, tasks, users, workspaces, admin
 
 
 @asynccontextmanager
@@ -33,6 +33,7 @@ app.add_middleware(
 
 app.include_router(auth_routes.router)
 app.include_router(users.router)
+app.include_router(admin.router)
 app.include_router(tasks.router)
 app.include_router(tasks.notes_router)
 app.include_router(tasks.plan_router)

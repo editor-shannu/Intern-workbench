@@ -35,10 +35,14 @@ async def chat(
     ws: models.Workspace = Depends(get_owned_workspace),
     db: Session = Depends(get_db),
 ):
+    api_key = ""
     key_row = db.query(models.OpenRouterKey).filter_by(user_id=current_user.id).first()
-    if not key_row:
-        raise HTTPException(400, "No OpenRouter API key on file. Add one under Settings first.")
-    api_key = decrypt_secret(key_row.encrypted_key, key_row.encrypted_nonce)
+    if key_row:
+        api_key = decrypt_secret(key_row.encrypted_key, key_row.encrypted_nonce)
+    elif payload.model not in ("workbench-local", "mock-assistant"):
+        raise HTTPException(
+            400, "No OpenRouter API key on file. Add one under Settings or select Workbench Local Assistant."
+        )
 
     task = db.get(models.Task, ws.task_id)
     bundle, _sources = context_builder.build_context_bundle(db, ws, task, Path(ws.worktree_path))
@@ -93,3 +97,10 @@ async def chat(
             db2.close()
 
     return StreamingResponse(event_gen(), media_type="text/event-stream")
+
+
+@router.delete("")
+def clear_history(ws: models.Workspace = Depends(get_owned_workspace), db: Session = Depends(get_db)):
+    db.query(models.ChatMessage).filter_by(workspace_id=ws.id).delete()
+    db.commit()
+    return {"status": "cleared"}

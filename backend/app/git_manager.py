@@ -26,6 +26,12 @@ class GitError(Exception):
     pass
 
 
+class GitConflictError(GitError):
+    def __init__(self, message: str, conflicted_files: list[str] | None = None):
+        super().__init__(message)
+        self.conflicted_files = conflicted_files or []
+
+
 def _run(args: list[str], cwd: str | None = None) -> str:
     result = subprocess.run(args, cwd=cwd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -109,17 +115,73 @@ def set_identity(worktree_path: Path, name: str, email: str) -> None:
     _run(["git", "-C", str(worktree_path), "config", "user.name", name])
     _run(["git", "-C", str(worktree_path), "config", "user.email", email])
 
-def merge_base_branch(worktree_path: Path, base_branch: str, project_id: int | None = None, repo_url: str = "") -> None:
-    """Merges the latest base_branch into the worktree. Aborts if conflicts occur."""
+def get_conflicted_files(worktree_path: Path) -> list[str]:
+    res = subprocess.run(
+        ["git", "-C", str(worktree_path), "diff", "--name-only", "--diff-filter=U"],
+        capture_output=True,
+        text=True,
+    )
+    if res.returncode == 0 and res.stdout.strip():
+        return [f.strip() for f in res.stdout.strip().splitlines() if f.strip()]
+    return []
+
+def merge_base_branch(worktree_path: Path, base_branch: str, project_id: int | None = None, repo_url: str = "") -> list[str]:
+    """Merges the latest base_branch into the worktree. If conflicts occur, leaves them for resolution and raises GitConflictError."""
     fetch_latest(project_id, repo_url, base_branch)
+    res = subprocess.run(
+        ["git", "-C", str(worktree_path), "merge", f"refs/heads/{base_branch}", "--no-edit"],
+        capture_output=True,
+        text=True,
+    )
+    if res.returncode != 0:
+        conflicts = get_conflicted_files(worktree_path)
+        if conflicts:
+            raise GitConflictError("Merge conflicts detected", conflicted_files=conflicts)
+        raise GitError(f"Merge failed: {res.stderr.strip() or res.stdout.strip()}")
+    return []
+
+def abort_merge(worktree_path: Path) -> None:
+    _run(["git", "-C", str(worktree_path), "merge", "--abort"])
+
+def complete_merge(worktree_path: Path, author_name: str, author_email: str) -> None:
+    unmerged = get_conflicted_files(worktree_path)
+    still_has_markers = []
+    for f in unmerged:
+        file_path = resolve_safe_path(worktree_path, f)
+        if file_path.exists() and file_path.is_file():
+            try:
+                content = file_path.read_text(encoding="utf-8", errors="ignore")
+                if "<<<<<<<" in content and "=======" in content:
+                    still_has_markers.append(f)
+            except Exception:
+                pass
+    if still_has_markers:
+        raise GitConflictError("Cannot complete merge: unresolved conflict markers remain", conflicted_files=still_has_markers)
+    _run(["git", "-C", str(worktree_path), "add", "-A"])
+    _run(["git", "-C", str(worktree_path), "commit", "--no-edit"])
+
+def reset_worktree(worktree_path: Path) -> None:
+    # Abort any in-progress merge first
     try:
-        _run(["git", "-C", str(worktree_path), "merge", f"refs/heads/{base_branch}", "--no-edit"])
-    except GitError as e:
-        try:
-            _run(["git", "-C", str(worktree_path), "merge", "--abort"])
-        except GitError:
-            pass
-        raise GitError(f"Merge failed (likely due to conflicts). Aborted safely. Original error: {e}")
+        _run(["git", "-C", str(worktree_path), "merge", "--abort"])
+    except GitError:
+        pass
+    _run(["git", "-C", str(worktree_path), "checkout", "-f", "HEAD"])
+    _run(["git", "-C", str(worktree_path), "clean", "-fd"])
+
+def prune_worktree(worktree_path: Path, project_id: int | None = None) -> None:
+    import shutil
+    git_dir = get_git_dir(project_id)
+    try:
+        _run(["git", f"--git-dir={git_dir}", "worktree", "remove", "--force", str(worktree_path)])
+    except GitError:
+        pass
+    if worktree_path.exists():
+        shutil.rmtree(worktree_path, ignore_errors=True)
+    try:
+        _run(["git", f"--git-dir={git_dir}", "worktree", "prune"])
+    except GitError:
+        pass
 
 
 def resolve_safe_path(base: Path, relpath: str) -> Path:

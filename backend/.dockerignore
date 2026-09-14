@@ -1,0 +1,23 @@
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+venv
+ENV/
+env/
+.pytest_cache/
+.coverage
+
+# Data & databases
+data
+repos
+*.db
+*.sqlite3
+
+# Secrets
+.env

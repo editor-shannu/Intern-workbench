@@ -63,15 +63,12 @@ async def get_openrouter_models(
 ):
     from ..crypto import decrypt_secret
     key_rec = db.query(models.OpenRouterKey).filter_by(user_id=current_user.id).first()
-    if not key_rec:
-        raise HTTPException(400, "No OpenRouter API key on file")
-    
-    api_key = decrypt_secret(key_rec.encrypted_key, key_rec.encrypted_nonce)
+    api_key = decrypt_secret(key_rec.encrypted_key, key_rec.encrypted_nonce) if key_rec else ""
     try:
         models_list = await openrouter_client.get_models(api_key)
         return models_list
-    except Exception as e:
-        raise HTTPException(400, f"Failed to fetch models: {e}")
+    except Exception:
+        return [{"id": openrouter_client.LOCAL_MODEL_ID, "name": openrouter_client.LOCAL_MODEL_NAME}]
 
 
 @router.get("/me/openrouter-key/status")
